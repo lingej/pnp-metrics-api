@@ -1,6 +1,6 @@
 <?php defined('SYSPATH') OR die('No direct access allowed.');
 /**
-* Xport controller.
+* API controller.
 *
 * @package    pnp4nagios
 * @author     Joerg Linge
@@ -37,7 +37,9 @@ class Api_Controller extends System_Controller  {
           continue;
         }
         if ( preg_match("/$query/i", $value['name']) ){
-          $data[] = $value['name'];
+          $data['hosts'][] = array(
+            'name' => $value['name']
+          );
         }
       }
     }else{
@@ -47,7 +49,9 @@ class Api_Controller extends System_Controller  {
         if ( $value['state'] != 'active' ){
           continue;
         }
-        $data[] = $value['name'];
+        $data['hosts'][] = array(
+          'name' => $value['name']
+        );
       }
     }
     $json = json_encode($data, JSON_PRETTY_PRINT);
@@ -80,11 +84,15 @@ class Api_Controller extends System_Controller  {
     foreach($services as $service => $value){
       if ( $query === false){
         // All Services
-        $data['services'][] = $value['name'];
+        $data['services'][] = array(
+          'name' => $value['name']
+        );
       }else{
         // Services matching Regex
         if ( preg_match( "/$query/i", $value['name']) ){
-          $data['services'][] = $value['name'];
+          $data['services'][] = array(
+            'name' => $value['name']
+          );
         }
       }
     }
@@ -124,16 +132,20 @@ class Api_Controller extends System_Controller  {
     }
     $data = array();
     foreach( $this->data->DS as $KEY => $DS){
-      $data['labels'][] = $DS['NAME'];
+      $data['labels'][] = array(
+        'name' => $DS['NAME']
+      );
     }
     $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
+    header('Status:G 200');
     header('Content-type: application/json');
     print $json;
   }
 
 
   public function metrics($host=false, $service=false, $label=false){
+    // extract metrics vor a given datasource
+    // TODO Multiple sources via regex
     if ( $host === false ){
       $data['error'] = "No hostname specified";
       $json = json_encode($data, JSON_PRETTY_PRINT);
@@ -183,17 +195,25 @@ class Api_Controller extends System_Controller  {
       $i++;
     }
 
-    $data['index'] = $index;
     $i = 0;
     $start = (string) $xpd->meta->start;
+    $end   = (string) $xpd->meta->end;
     $step  = (string) $xpd->meta->step;
+    $data[0]['start']   = $start * 1000;
+    $data[0]['end']     = $end * 1000;
+    $data[0]['host']    = $host;
+    $data[0]['service'] = $service;
+    $data[0]['label']   = $label;
+
+
     foreach ( $xpd->data->row as $row=>$value){
-        $timestamp = $start + ($i * $step);    
+        // timestamp in milliseconds
+        $timestamp = ( $start + $i * $step ) * 1000;
         #print_r($value);i
         $d = (string) $value->v->$index;
         if ($d == "NaN"){ $d = 0; }
         $d = floatval($d);
-        $data['datapoints'][] = sprintf("%s,%s", $timestamp, $d);
+        $data[0]['datapoints'][] = array( $timestamp, $d);
         $i++;
     }
     $json = json_encode($data, JSON_PRETTY_PRINT);
