@@ -211,8 +211,11 @@ class Api_Controller extends System_Controller  {
         $timestamp = ( $start + $i * $step ) * 1000;
         #print_r($value);i
         $d = (string) $value->v->$index;
-        if ($d == "NaN"){ $d = 0; }
-        $d = floatval($d);
+        if ($d == "NaN"){ 
+          $d = null;
+        }else{
+          $d = floatval($d);
+        }
         $data[0]['datapoints'][] = array( $d, $timestamp );
         $i++;
     }
