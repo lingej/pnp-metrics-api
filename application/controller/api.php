@@ -137,7 +137,7 @@ class Api_Controller extends System_Controller  {
       );
     }
     $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status:G 200');
+    header('Status: 200');
     header('Content-type: application/json');
     print $json;
   }
@@ -213,7 +213,7 @@ class Api_Controller extends System_Controller  {
         $d = (string) $value->v->$index;
         if ($d == "NaN"){ $d = 0; }
         $d = floatval($d);
-        $data[0]['datapoints'][] = array( $timestamp, $d);
+        $data[0]['datapoints'][] = array( $d, $timestamp );
         $i++;
     }
     $json = json_encode($data, JSON_PRETTY_PRINT);
