@@ -185,13 +185,12 @@ class Api_Controller extends System_Controller  {
       $start                  = (string) $xpd->meta->start;
       $end                    = (string) $xpd->meta->end;
       $step                   = (string) $xpd->meta->step;
-      $data[$key]['start']       = $start * 1000;
-      $data[$key]['end']         = $end * 1000;
-      $data[$key]['host']        = $host;
-      $data[$key]['service']     = $service;
-      $data[$key]['perflabel']   = $perflabel;
-      $data[$key]['type']        = $type;
-
+      $data['targets'][$key]['start']       = $start * 1000;
+      $data['targets'][$key]['end']         = $end * 1000;
+      $data['targets'][$key]['host']        = $host;
+      $data['targets'][$key]['service']     = $service;
+      $data['targets'][$key]['perflabel']   = $perflabel;
+      $data['targets'][$key]['type']        = $type;
 
       foreach ( $xpd->data->row as $row=>$value){
         // timestamp in milliseconds
@@ -203,7 +202,7 @@ class Api_Controller extends System_Controller  {
         }else{
           $d = floatval($d);
         }
-        $data[$key]['datapoints'][] = array( $d, $timestamp );
+        $data['targets'][$key]['datapoints'][] = array( $d, $timestamp );
         $i++;
       }
 
