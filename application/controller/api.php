@@ -133,8 +133,8 @@ class Api_Controller extends System_Controller  {
     $data = array();
     foreach( $pdata['targets'] as $key => $target){
 
-      $this->start = arr_get($pdata, 'start');
-      $this->end   = arr_get($pdata, 'end');
+      $this->data->TIMERANGE['start'] = arr_get($pdata,  'start');
+      $this->data->TIMERANGE['end']   = arr_get($pdata,  'end');
       $host        = arr_get($target, 'host');
       $service     = arr_get($target, 'service');
       $perflabel   = arr_get($target, 'perflabel');
@@ -202,7 +202,9 @@ class Api_Controller extends System_Controller  {
         }else{
           $d = floatval($d);
         }
-        $data['targets'][$key]['datapoints'][] = array( $d, $timestamp );
+        // SNI -> FIX
+        // $data['targets'][$key]['datapoints'][] = array( $d, $timestamp );
+        $data['targets'][$key][0]['datapoints'][] = array( $d, $timestamp );
         $i++;
       }
 
