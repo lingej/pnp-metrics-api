@@ -120,8 +120,14 @@ class Api_Controller extends System_Controller  {
 
 
   public function metrics(){
-    // extract metrics vor a given datasource
+    // extract metrics for a given datasource
     // TODO Multiple sources via regex
+    if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+      // Only Post Reuests
+      $data['error'] = "Only POST Requests allowed";
+      return_json($data, 901);
+      return;
+    }
     $pdata = json_decode(file_get_contents('php://input'), TRUE);
     #print_r($pdata);
     $this->start = arr_get($pdata, 'start');
