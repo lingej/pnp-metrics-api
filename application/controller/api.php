@@ -22,10 +22,7 @@ class Api_Controller extends System_Controller  {
     $data['pnp_version']  = PNP_VERSION;
     $data['pnp_rel_date'] = PNP_REL_DATE;
     $data['error']        = "";
-    $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
-    header('Content-type: application/json');
-    print $json;
+    return_json($data, 200);
   }
 
   public function hosts($query = false) {
@@ -54,19 +51,13 @@ class Api_Controller extends System_Controller  {
         );
       }
     }
-    $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
-    header('Content-type: application/json');
-    print $json;
+    return_json($data, 200);
   }
 
   public function services($host = false, $query = false) {
     if ( $host === false ){
       $data['error'] = "No hostname specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
     $services = array();
@@ -74,10 +65,7 @@ class Api_Controller extends System_Controller  {
       $services = $this->data->getServices($host);
     } catch ( Kohana_Exception $e) {
       $data['error'] = "$e";
-      $json = json_encode($data);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
 
@@ -96,19 +84,13 @@ class Api_Controller extends System_Controller  {
         }
       }
     }
-    $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
-    header('Content-type: application/json');
-    print $json;
+    return_json($data, 200);
   }
 
   public function labels ( $host=false, $service=false ) {
     if ( $host === false ){
       $data['error'] = "No hostname specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
     if ( $service === false ){
@@ -124,10 +106,7 @@ class Api_Controller extends System_Controller  {
       $this->data->readXML($host, $service);
     } catch (Kohana_Exception $e) {
       $data['error'] = "$e";
-      $json = json_encode($data);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
     $data = array();
@@ -136,38 +115,39 @@ class Api_Controller extends System_Controller  {
         'name' => $DS['NAME']
       );
     }
-    $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
-    header('Content-type: application/json');
-    print $json;
+    return_json($data, 200);
   }
 
 
-  public function metrics($host=false, $service=false, $label=false){
+  public function metrics(){
     // extract metrics vor a given datasource
     // TODO Multiple sources via regex
+    $pdata = json_decode(file_get_contents('php://input'), TRUE);
+    #print_r($pdata);
+    $this->start = arr_get($pdata, 'start');
+    $this->end   = arr_get($pdata, 'end');
+    $host        = arr_get($pdata, 'targets.0.host');
+    $service     = arr_get($pdata, 'targets.0.service');
+    $perflabel   = arr_get($pdata, 'targets.0.perflabel');
+    $type        = arr_get($pdata, 'targets.0.type');
     if ( $host === false ){
       $data['error'] = "No hostname specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
     if ( $service === false ){
       $data['error'] = "No service specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
-    if ( $label === false ){
+    if ( $perflabel === false ){
       $data['error'] = "No perfdata label specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
+      return;
+    }
+    if ( $type === false ){
+      $data['error'] = "No perfdata type specified";
+      return_json($data, 901);
       return;
     }
     $data = array();
@@ -177,10 +157,7 @@ class Api_Controller extends System_Controller  {
       $xml = $this->rrdtool->doXport($this->data->XPORT);
     } catch (Kohana_Exception $e) {
       $data['error'] = "$e";
-      $json = json_encode($data);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
 
@@ -188,7 +165,7 @@ class Api_Controller extends System_Controller  {
     $i = 0;
     $index = 0;
     foreach ( $xpd->meta->legend->entry as $k=>$v){
-      if( $v == $label."_AVERAGE"){
+      if( $v == $perflabel."_AVERAGE"){
         $index = $i;
         break;
       }
@@ -196,14 +173,14 @@ class Api_Controller extends System_Controller  {
     }
 
     $i = 0;
-    $start = (string) $xpd->meta->start;
-    $end   = (string) $xpd->meta->end;
-    $step  = (string) $xpd->meta->step;
-    $data[0]['start']   = $start * 1000;
-    $data[0]['end']     = $end * 1000;
-    $data[0]['host']    = $host;
-    $data[0]['service'] = $service;
-    $data[0]['label']   = $label;
+    $start                  = (string) $xpd->meta->start;
+    $end                    = (string) $xpd->meta->end;
+    $step                   = (string) $xpd->meta->step;
+    $data[0]['start']       = $start * 1000;
+    $data[0]['end']         = $end * 1000;
+    $data[0]['host']        = $host;
+    $data[0]['service']     = $service;
+    $data[0]['perflabel']   = $perflabel;
 
 
     foreach ( $xpd->data->row as $row=>$value){
@@ -211,7 +188,7 @@ class Api_Controller extends System_Controller  {
         $timestamp = ( $start + $i * $step ) * 1000;
         #print_r($value);i
         $d = (string) $value->v->$index;
-        if ($d == "NaN"){ 
+        if ($d == "NaN"){
           $d = null;
         }else{
           $d = floatval($d);
@@ -219,9 +196,34 @@ class Api_Controller extends System_Controller  {
         $data[0]['datapoints'][] = array( $d, $timestamp );
         $i++;
     }
-    $json = json_encode($data, JSON_PRETTY_PRINT);
-    header('Status: 200');
-    header('Content-type: application/json');
-    print $json;
+    return_json($data, 200);
   }
+}
+/*
+* return array key
+*/
+function arr_get($array, $key=false, $default=false){
+  if ( isset($array) && $key == false ){
+    return $array;
+  }
+  $keys = explode(".", $key);
+  foreach ($keys as $key_part) {
+    if ( isset($array[$key_part] ) === false ) {
+      if (! is_array($array) or ! array_key_exists($key_part, $array)) {
+         return $default;
+      }
+    }
+    $array = $array[$key_part];
+  }
+  return $array;
+}
+
+/*
+*
+*/
+function return_json( $data, $status=200 ){
+  $json = json_encode($data, JSON_PRETTY_PRINT);
+  header('Status: '.$status);
+  header('Content-type: application/json');
+  print $json;
 }
