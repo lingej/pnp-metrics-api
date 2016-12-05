@@ -130,66 +130,70 @@ class Api_Controller extends System_Controller  {
     }
     $pdata = json_decode(file_get_contents('php://input'), TRUE);
     #print_r($pdata);
-    $this->start = arr_get($pdata, 'start');
-    $this->end   = arr_get($pdata, 'end');
-    $host        = arr_get($pdata, 'targets.0.host');
-    $service     = arr_get($pdata, 'targets.0.service');
-    $perflabel   = arr_get($pdata, 'targets.0.perflabel');
-    $type        = arr_get($pdata, 'targets.0.type');
-    if ( $host === false ){
-      $data['error'] = "No hostname specified";
-      return_json($data, 901);
-      return;
-    }
-    if ( $service === false ){
-      $data['error'] = "No service specified";
-      return_json($data, 901);
-      return;
-    }
-    if ( $perflabel === false ){
-      $data['error'] = "No perfdata label specified";
-      return_json($data, 901);
-      return;
-    }
-    if ( $type === false ){
-      $data['error'] = "No perfdata type specified";
-      return_json($data, 901);
-      return;
-    }
     $data = array();
+    foreach( $pdata['targets'] as $key => $target){
 
-    try {
-      $this->data->buildXport($host, $service);
-      $xml = $this->rrdtool->doXport($this->data->XPORT);
-    } catch (Kohana_Exception $e) {
-      $data['error'] = "$e";
-      return_json($data, 901);
-      return;
-    }
-
-    $xpd = simplexml_load_string($xml);
-    $i = 0;
-    $index = 0;
-    foreach ( $xpd->meta->legend->entry as $k=>$v){
-      if( $v == $perflabel."_AVERAGE"){
-        $index = $i;
-        break;
+      $this->start = arr_get($pdata, 'start');
+      $this->end   = arr_get($pdata, 'end');
+      $host        = arr_get($target, 'host');
+      $service     = arr_get($target, 'service');
+      $perflabel   = arr_get($target, 'perflabel');
+      $type        = arr_get($target, 'type');
+      $refid       = arr_get($target, 'refid');
+      if ( $host === false ){
+        $data['error'] = "No hostname specified";
+        return_json($data, 901);
+        return;
       }
-      $i++;
-    }
+      if ( $service === false ){
+        $data['error'] = "No service specified";
+        return_json($data, 901);
+        return;
+      }
+      if ( $perflabel === false ){
+        $data['error'] = "No perfdata label specified";
+        return_json($data, 901);
+        return;
+      }
+      if ( $type === false ){
+        $data['error'] = "No perfdata type specified";
+        return_json($data, 901);
+        return;
+      }
 
-    $i = 0;
-    $start                  = (string) $xpd->meta->start;
-    $end                    = (string) $xpd->meta->end;
-    $step                   = (string) $xpd->meta->step;
-    $data[0]['start']       = $start * 1000;
-    $data[0]['end']         = $end * 1000;
-    $data[0]['host']        = $host;
-    $data[0]['service']     = $service;
-    $data[0]['perflabel']   = $perflabel;
+      try {
+        $this->data->buildXport($host, $service);
+        $xml = $this->rrdtool->doXport($this->data->XPORT);
+      } catch (Kohana_Exception $e) {
+        $data['error'] = "$e";
+        return_json($data, 901);
+        return;
+      }
+
+      $xpd = simplexml_load_string($xml);
+      $i = 0;
+      $index = 0;
+      foreach ( $xpd->meta->legend->entry as $k=>$v){
+        if( $v == $perflabel."_".$type){
+          $index = $i;
+          break;
+        }
+        $i++;
+      }
+
+      $i = 0;
+      $start                  = (string) $xpd->meta->start;
+      $end                    = (string) $xpd->meta->end;
+      $step                   = (string) $xpd->meta->step;
+      $data[$key]['start']       = $start * 1000;
+      $data[$key]['end']         = $end * 1000;
+      $data[$key]['host']        = $host;
+      $data[$key]['service']     = $service;
+      $data[$key]['perflabel']   = $perflabel;
+      $data[$key]['type']        = $type;
 
 
-    foreach ( $xpd->data->row as $row=>$value){
+      foreach ( $xpd->data->row as $row=>$value){
         // timestamp in milliseconds
         $timestamp = ( $start + $i * $step ) * 1000;
         #print_r($value);i
@@ -199,8 +203,10 @@ class Api_Controller extends System_Controller  {
         }else{
           $d = floatval($d);
         }
-        $data[0]['datapoints'][] = array( $d, $timestamp );
+        $data[$key]['datapoints'][] = array( $d, $timestamp );
         $i++;
+      }
+
     }
     return_json($data, 200);
   }
