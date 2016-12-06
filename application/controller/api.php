@@ -129,10 +129,10 @@ class Api_Controller extends System_Controller  {
       return_json($data, 901);
       return;
     }
-    $hosts = array(); // List of all Hosts
-    $pdata = json_decode(file_get_contents('php://input'), TRUE);
-    #print_r($pdata);
-    $data = array();
+    $hosts    = array(); // List of all Hosts
+    $services = array(); // List of services for a given host
+    $pdata    = json_decode(file_get_contents('php://input'), TRUE);
+    $data     = array();
     foreach( $pdata['targets'] as $key => $target){
 
       $this->data->TIMERANGE['start'] = arr_get($pdata,  'start');
@@ -162,6 +162,7 @@ class Api_Controller extends System_Controller  {
         return_json($data, 901);
         return;
       }
+      // generate a list of hosts
       if ( isRegex($host) ){
          // create a Host List
          $hosts = $this->data->getHosts();
@@ -174,60 +175,77 @@ class Api_Controller extends System_Controller  {
          $hosts = $t;
       }else{
          $hosts[0] = $host;
-
       }
 
       $hk = 0; // Host Key
       foreach ( $hosts as $host){
-        try {
-          $this->data->buildXport($host, $service);
-          $xml = $this->rrdtool->doXport($this->data->XPORT);
-        } catch (Kohana_Exception $e) {
-          $data['error'] = "$e";
-          return_json($data, 901);
-          return;
+
+        if ( isRegex($service) ){
+           // create a Host List
+           $services = $this->data->getServices($host);
+           $t = array();
+           foreach ($services as $value) {
+             if ( preg_match("$service", $value['name']) ){
+               $t[] = $value['name'];
+             }
+           }
+           $services = $t;
+        }else{
+           $services[0] = $service;
         }
 
-        $xpd = simplexml_load_string($xml);
-        $i = 0;
-        $index = 0;
-        foreach ( $xpd->meta->legend->entry as $k=>$v){
-          if( $v == $perflabel."_".$type){
-            $index = $i;
-            break;
+        foreach ( $services as $service){
+          try {
+            $this->data->buildXport($host, $service);
+            $xml = $this->rrdtool->doXport($this->data->XPORT);
+          } catch (Kohana_Exception $e) {
+            $data['error'] = "$e";
+            return_json($data, 901);
+            return;
           }
-          $i++;
-        }
 
-        $start                  = (string) $xpd->meta->start;
-        $end                    = (string) $xpd->meta->end;
-        $step                   = (string) $xpd->meta->step;
-        $data['targets'][$key][$hk]['start']       = $start * 1000;
-        $data['targets'][$key][$hk]['end']         = $end * 1000;
-        $data['targets'][$key][$hk]['host']        = $host;
-        $data['targets'][$key][$hk]['service']     = $service;
-        $data['targets'][$key][$hk]['perflabel']   = $perflabel;
-        $data['targets'][$key][$hk]['type']        = $type;
-
-        $i  = 0;
-        foreach ( $xpd->data->row as $row=>$value){
-          // timestamp in milliseconds
-          $timestamp = ( $start + $i * $step ) * 1000;
-          #print_r($value);i
-          $d = (string) $value->v->$index;
-          if ($d == "NaN"){
-            $d = null;
-          }else{
-            $d = floatval($d);
+          $xpd = simplexml_load_string($xml);
+          $i = 0;
+          $index = 0;
+          foreach ( $xpd->meta->legend->entry as $k=>$v){
+            if( $v == $perflabel."_".$type){
+              $index = $i;
+              break;
+            }
+            $i++;
           }
-          $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
-          $i++;
+
+          $start                  = (string) $xpd->meta->start;
+          $end                    = (string) $xpd->meta->end;
+          $step                   = (string) $xpd->meta->step;
+          $data['targets'][$key][$hk]['start']       = $start * 1000;
+          $data['targets'][$key][$hk]['end']         = $end * 1000;
+          $data['targets'][$key][$hk]['host']        = $host;
+          $data['targets'][$key][$hk]['service']     = $service;
+          $data['targets'][$key][$hk]['perflabel']   = $perflabel;
+          $data['targets'][$key][$hk]['type']        = $type;
+
+          $i  = 0;
+          foreach ( $xpd->data->row as $row=>$value){
+            // timestamp in milliseconds
+            $timestamp = ( $start + $i * $step ) * 1000;
+            #print_r($value);i
+            $d = (string) $value->v->$index;
+            if ($d == "NaN"){
+              $d = null;
+            }else{
+              $d = floatval($d);
+            }
+            $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+            $i++;
+          }
+
+          $hk++;
+
         }
-
-        $hk++;
-
       }
     }
+
     return_json($data, 200);
   }
 }
