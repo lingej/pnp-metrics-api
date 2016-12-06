@@ -26,6 +26,7 @@ class Api_Controller extends System_Controller  {
   }
 
   public function hosts($query = false) {
+
     if ( $query ){
       $hosts = $this->data->getHosts();
       $data  = array();
@@ -33,7 +34,7 @@ class Api_Controller extends System_Controller  {
         if ( $value['state'] != 'active' ){
           continue;
         }
-        if ( preg_match("/$query/i", $value['name']) ){
+        if ( preg_match("$query", $value['name']) ){
           $data['hosts'][] = array(
             'name' => $value['name']
           );
@@ -128,6 +129,7 @@ class Api_Controller extends System_Controller  {
       return_json($data, 901);
       return;
     }
+    $hosts = array(); // List of all Hosts
     $pdata = json_decode(file_get_contents('php://input'), TRUE);
     #print_r($pdata);
     $data = array();
@@ -160,54 +162,71 @@ class Api_Controller extends System_Controller  {
         return_json($data, 901);
         return;
       }
+      if ( isRegex($host) ){
+         // create a Host List
+         $hosts = $this->data->getHosts();
+         $t = array();
+         foreach ($hosts as $value) {
+           if ( preg_match("$host", $value['name']) ){
+             $t[] = $value['name'];
+           }
+         }
+         $hosts = $t;
+      }else{
+         $hosts[0] = $host;
 
-      try {
-        $this->data->buildXport($host, $service);
-        $xml = $this->rrdtool->doXport($this->data->XPORT);
-      } catch (Kohana_Exception $e) {
-        $data['error'] = "$e";
-        return_json($data, 901);
-        return;
       }
 
-      $xpd = simplexml_load_string($xml);
-      $i = 0;
-      $index = 0;
-      foreach ( $xpd->meta->legend->entry as $k=>$v){
-        if( $v == $perflabel."_".$type){
-          $index = $i;
-          break;
+      $hk = 0; // Host Key
+      foreach ( $hosts as $host){
+        try {
+          $this->data->buildXport($host, $service);
+          $xml = $this->rrdtool->doXport($this->data->XPORT);
+        } catch (Kohana_Exception $e) {
+          $data['error'] = "$e";
+          return_json($data, 901);
+          return;
         }
-        $i++;
-      }
 
-      $i = 0;
-      $start                  = (string) $xpd->meta->start;
-      $end                    = (string) $xpd->meta->end;
-      $step                   = (string) $xpd->meta->step;
-      $data['targets'][$key]['start']       = $start * 1000;
-      $data['targets'][$key]['end']         = $end * 1000;
-      $data['targets'][$key]['host']        = $host;
-      $data['targets'][$key]['service']     = $service;
-      $data['targets'][$key]['perflabel']   = $perflabel;
-      $data['targets'][$key]['type']        = $type;
-
-      foreach ( $xpd->data->row as $row=>$value){
-        // timestamp in milliseconds
-        $timestamp = ( $start + $i * $step ) * 1000;
-        #print_r($value);i
-        $d = (string) $value->v->$index;
-        if ($d == "NaN"){
-          $d = null;
-        }else{
-          $d = floatval($d);
+        $xpd = simplexml_load_string($xml);
+        $i = 0;
+        $index = 0;
+        foreach ( $xpd->meta->legend->entry as $k=>$v){
+          if( $v == $perflabel."_".$type){
+            $index = $i;
+            break;
+          }
+          $i++;
         }
-        // SNI -> FIX
-        // $data['targets'][$key]['datapoints'][] = array( $d, $timestamp );
-        $data['targets'][$key][0]['datapoints'][] = array( $d, $timestamp );
-        $i++;
-      }
 
+        $start                  = (string) $xpd->meta->start;
+        $end                    = (string) $xpd->meta->end;
+        $step                   = (string) $xpd->meta->step;
+        $data['targets'][$key][$hk]['start']       = $start * 1000;
+        $data['targets'][$key][$hk]['end']         = $end * 1000;
+        $data['targets'][$key][$hk]['host']        = $host;
+        $data['targets'][$key][$hk]['service']     = $service;
+        $data['targets'][$key][$hk]['perflabel']   = $perflabel;
+        $data['targets'][$key][$hk]['type']        = $type;
+
+        $i  = 0;
+        foreach ( $xpd->data->row as $row=>$value){
+          // timestamp in milliseconds
+          $timestamp = ( $start + $i * $step ) * 1000;
+          #print_r($value);i
+          $d = (string) $value->v->$index;
+          if ($d == "NaN"){
+            $d = null;
+          }else{
+            $d = floatval($d);
+          }
+          $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+          $i++;
+        }
+
+        $hk++;
+
+      }
     }
     return_json($data, 200);
   }
@@ -239,4 +258,13 @@ function return_json( $data, $status=200 ){
   header('Status: '.$status);
   header('Content-type: application/json');
   print $json;
+}
+
+function isRegex($string){
+   // if string looks like an regex /regex/
+   if ( substr($string,0,1) == "/" ){
+      return true;
+   }else{
+      return false;
+   }
 }
