@@ -96,10 +96,7 @@ class Api_Controller extends System_Controller  {
     }
     if ( $service === false ){
       $data['error'] = "No service specified";
-      $json = json_encode($data, JSON_PRETTY_PRINT);
-      header('Status: 901');
-      header('Content-type: application/json');
-      print $json;
+      return_json($data, 901);
       return;
     }
     try {
@@ -272,7 +269,7 @@ function arr_get($array, $key=false, $default=false){
 *
 */
 function return_json( $data, $status=200 ){
-  $json = json_encode($data, JSON_PRETTY_PRINT);
+  $json = json_encode($data);
   header('Status: '.$status);
   header('Content-type: application/json');
   print $json;
