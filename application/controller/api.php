@@ -25,6 +25,10 @@ class Api_Controller extends System_Controller  {
     return_json($data, 200);
   }
 
+  /*
+  *
+  *
+  */
   public function hosts($query = false) {
 
     if ( $query ){
@@ -55,40 +59,62 @@ class Api_Controller extends System_Controller  {
     return_json($data, 200);
   }
 
-  public function services($host = false, $query = false) {
+  /*
+  *
+  *
+  */
+  public function services() {
+    if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+      // Only Post Reuests
+      $data['error'] = "Only POST Requests allowed";
+      return_json($data, 901);
+      return;
+    }
+    $pdata    = json_decode(file_get_contents('php://input'), TRUE);
+
+    $host = arr_get($pdata, "host");
     if ( $host === false ){
       $data['error'] = "No hostname specified";
       return_json($data, 901);
       return;
     }
     $services = array();
-    try {
-      $services = $this->data->getServices($host);
-    } catch ( Kohana_Exception $e) {
-      $data['error'] = "$e";
-      return_json($data, 901);
-      return;
-    }
+    if ( isRegex($host) ){
 
-    foreach($services as $service => $value){
-      if ( $query === false){
+    }else{
+      try {
+        $services = $this->data->getServices($host);
+      } catch ( Kohana_Exception $e) {
+        $data['error'] = "$e";
+        return_json($data, 901);
+        return;
+      }
+
+      foreach($services as $service => $value){
         // All Services
         $data['services'][] = array(
           'name' => $value['name']
         );
-      }else{
-        // Services matching Regex
-        if ( preg_match( "/$query/i", $value['name']) ){
-          $data['services'][] = array(
-            'name' => $value['name']
-          );
-        }
       }
     }
     return_json($data, 200);
   }
 
+  /*
+  *
+  *
+  */
   public function labels ( $host=false, $service=false ) {
+    if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+      // Only Post Reuests
+      $data['error'] = "Only POST Requests allowed";
+      return_json($data, 901);
+      return;
+    }
+    $pdata    = json_decode(file_get_contents('php://input'), TRUE);
+    $host     = arr_get($pdata, "host");
+    $service  = arr_get($pdata, "service");
+
     if ( $host === false ){
       $data['error'] = "No hostname specified";
       return_json($data, 901);
@@ -161,84 +187,111 @@ class Api_Controller extends System_Controller  {
       }
       // generate a list of hosts
       if ( isRegex($host) ){
-         // create a Host List
-         $hosts = $this->data->getHosts();
-         $t = array();
-         foreach ($hosts as $value) {
-           if ( preg_match("$host", $value['name']) ){
-             $t[] = $value['name'];
-           }
-         }
-         $hosts = $t;
+        // create a Host List
+        $hosts = $this->data->getHosts();
+        $t = array();
+        foreach ($hosts as $value) {
+          if ( preg_match("$host", $value['name']) ){
+            $t[] = $value['name'];
+          }
+        }
+        $hosts = $t;
       }else{
-         $hosts[0] = $host;
+        $hosts[0] = $host;
       }
 
       $hk = 0; // Host Key
       foreach ( $hosts as $host){
 
         if ( isRegex($service) ){
-           // create a Host List
-           $services = $this->data->getServices($host);
-           $t = array();
-           foreach ($services as $value) {
-             if ( preg_match("$service", $value['name']) ){
-               $t[] = $value['name'];
-             }
-           }
-           $services = $t;
+          // create a Host List
+          $services = $this->data->getServices($host);
+          $t = array();
+          foreach ($services as $value) {
+            if ( preg_match("$service", $value['name']) ){
+              $t[] = $value['name'];
+            }
+          }
+          $services = $t;
         }else{
-           $services[0] = $service;
+          $services[0] = $service;
         }
 
         foreach ( $services as $service){
+
           try {
-            $this->data->buildXport($host, $service);
-            $xml = $this->rrdtool->doXport($this->data->XPORT);
+            // read XML file
+            $this->data->readXML($host, $service);
           } catch (Kohana_Exception $e) {
             $data['error'] = "$e";
             return_json($data, 901);
             return;
           }
 
-          $xpd = simplexml_load_string($xml);
-          $i = 0;
-          $index = 0;
-          foreach ( $xpd->meta->legend->entry as $k=>$v){
-            if( $v == $perflabel."_".$type){
-              $index = $i;
-              break;
+          // create a Perflabel List
+          $perflabels = array();
+          foreach( $this->data->DS as $value){
+            if ( isRegex($perflabel) ){
+              if ( preg_match( $perflabel, arr_get($value, "NAME" ) ) ){
+                $perflabels[] =  arr_get($value, "NAME" );
+              }
+            }else {
+              if ( $perflabel == arr_get($value, "NAME" ) ){
+                $perflabels[] = arr_get($value, "NAME" );
+              }
             }
-            $i++;
           }
 
-          $start                  = (string) $xpd->meta->start;
-          $end                    = (string) $xpd->meta->end;
-          $step                   = (string) $xpd->meta->step;
-          $data['targets'][$key][$hk]['start']       = $start * 1000;
-          $data['targets'][$key][$hk]['end']         = $end * 1000;
-          $data['targets'][$key][$hk]['host']        = $host;
-          $data['targets'][$key][$hk]['service']     = $service;
-          $data['targets'][$key][$hk]['perflabel']   = $perflabel;
-          $data['targets'][$key][$hk]['type']        = $type;
 
-          $i  = 0;
-          foreach ( $xpd->data->row as $row=>$value){
-            // timestamp in milliseconds
-            $timestamp = ( $start + $i * $step ) * 1000;
-            #print_r($value);i
-            $d = (string) $value->v->$index;
-            if ($d == "NaN"){
-              $d = null;
-            }else{
-              $d = floatval($d);
+          foreach ( $perflabels as $tmp_perflabel){
+            try {
+              $this->data->buildXport($host, $service);
+              $xml = $this->rrdtool->doXport($this->data->XPORT);
+            } catch (Kohana_Exception $e) {
+              $data['error'] = "$e";
+              return_json($data, 901);
+              return;
             }
-            $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
-            $i++;
+
+            $xpd   = simplexml_load_string($xml);
+            $i = 0;
+            $index = 0;
+            foreach ( $xpd->meta->legend->entry as $k=>$v){
+              if( $v == $tmp_perflabel."_".$type){
+                $index = $i;
+                break;
+              }
+              $i++;
+            }
+
+            $start                  = (string) $xpd->meta->start;
+            $end                    = (string) $xpd->meta->end;
+            $step                   = (string) $xpd->meta->step;
+            $data['targets'][$key][$hk]['start']       = $start * 1000;
+            $data['targets'][$key][$hk]['end']         = $end * 1000;
+            $data['targets'][$key][$hk]['host']        = $host;
+            $data['targets'][$key][$hk]['service']     = $service;
+            $data['targets'][$key][$hk]['perflabel']   = $tmp_perflabel;
+            $data['targets'][$key][$hk]['type']        = $type;
+
+            $i  = 0;
+            foreach ( $xpd->data->row as $row=>$value){
+              // timestamp in milliseconds
+              $timestamp = ( $start + $i * $step ) * 1000;
+              #print_r($value);i
+              $d = (string) $value->v->$index;
+              if ($d == "NaN"){
+                $d = null;
+              }else{
+                $d = floatval($d);
+              }
+              $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+              $i++;
+            }
+
+            $hk++;
+
           }
-
-          $hk++;
-
         }
       }
     }
@@ -257,7 +310,7 @@ function arr_get($array, $key=false, $default=false){
   foreach ($keys as $key_part) {
     if ( isset($array[$key_part] ) === false ) {
       if (! is_array($array) or ! array_key_exists($key_part, $array)) {
-         return $default;
+        return $default;
       }
     }
     $array = $array[$key_part];
@@ -276,10 +329,10 @@ function return_json( $data, $status=200 ){
 }
 
 function isRegex($string){
-   // if string looks like an regex /regex/
-   if ( substr($string,0,1) == "/" ){
-      return true;
-   }else{
-      return false;
-   }
+  // if string looks like an regex /regex/
+  if ( substr($string,0,1) == "/" ){
+    return true;
+  }else{
+    return false;
+  }
 }
