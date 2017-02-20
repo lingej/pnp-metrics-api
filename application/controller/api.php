@@ -331,7 +331,7 @@ function return_json( $data, $status=200 ){
 
 function isRegex($string){
   // if string looks like an regex /regex/
-  if ( substr($string,0,1) == "/" ){
+  if ( substr($string,0,1) == "/" && substr($string,-1,1) == "/" && strlen($string) >= 2 ){
     return true;
   }else{
     return false;
