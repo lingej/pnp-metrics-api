@@ -136,7 +136,8 @@ class Api_Controller extends System_Controller  {
     $data = array();
     foreach( $this->data->DS as $KEY => $DS){
       $data['labels'][] = array(
-        'name' => $DS['NAME']
+        'name'  => $DS['NAME'],
+        'label' => $DS['LABEL']
       );
     }
     return_json($data, 200);
@@ -232,12 +233,12 @@ class Api_Controller extends System_Controller  {
           $perflabels = array();
           foreach( $this->data->DS as $value){
             if ( isRegex($perflabel) ){
-              if ( preg_match( $perflabel, arr_get($value, "NAME" ) ) ){
-                $perflabels[] =  arr_get($value, "NAME" );
+              if ( preg_match( $perflabel, arr_get($value, "LABEL" ) ) ){
+                $perflabels[] =  arr_get($value, "LABEL" );
               }
             }else {
-              if ( $perflabel == arr_get($value, "NAME" ) ){
-                $perflabels[] = arr_get($value, "NAME" );
+              if ( $perflabel == arr_get($value, "LABEL" ) ){
+                $perflabels[] = arr_get($value, "LABEL" );
               }
             }
           }
@@ -330,7 +331,7 @@ function return_json( $data, $status=200 ){
 
 function isRegex($string){
   // if string looks like an regex /regex/
-  if ( substr($string,0,1) == "/" ){
+  if ( substr($string,0,1) == "/" && substr($string,-1,1) == "/" && strlen($string) >= 2 ){
     return true;
   }else{
     return false;
