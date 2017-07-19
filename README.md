@@ -25,7 +25,7 @@ curl -s -u '<username>:<password>' -X 'Content-Type': 'application/json' -X POST
 ```
 #### List all hosts
 ```
-curl -s -u '<username>:<password>' -X 'Content-Type': 'application/json' -X POST -d ' https://example.org/pnp4nagios/index.php/api/hosts
+curl -s -u '<username>:<password>' https://example.org/pnp4nagios/index.php/api/hosts
 ```
 #### List services of a host
 ```
