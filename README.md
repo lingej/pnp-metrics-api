@@ -3,7 +3,7 @@
 ### CURL
 #### Query metrics of a service on a specific host
 ```
-curl -s -u '<username>:<password>' -X 'Content-Type': 'application/json' -X POST -d '
+curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
 {
    "targets":[
       {
@@ -29,14 +29,14 @@ curl -s -u '<username>:<password>' https://example.org/pnp4nagios/index.php/api/
 ```
 #### List services of a host
 ```
-curl -s -u '<username>:<password>' -X 'Content-Type': 'application/json' -X POST -d '
+curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
 {
    "host":"host.example.org"
 }' https://example.org/pnp4nagios/index.php/api/services
 ```
 #### List labels of a service of specific host
 ```
-curl -s -u '<username>:<password>' -X 'Content-Type': 'application/json' -X POST -d '
+curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
 {
    "host":"host.example.org",
    "service":"_HOST_"
