@@ -234,11 +234,11 @@ class Api_Controller extends System_Controller  {
           foreach( $this->data->DS as $value){
             if ( isRegex($perflabel) ){
               if ( preg_match( $perflabel, arr_get($value, "LABEL" ) ) ){
-                $perflabels[] =  arr_get($value, "LABEL" );
+                $perflabels[] =  arr_get($value, "NAME" );
               }
             }else {
               if ( $perflabel == arr_get($value, "LABEL" ) ){
-                $perflabels[] = arr_get($value, "LABEL" );
+                $perflabels[] = arr_get($value, "NAME" );
               }
             }
           }
