@@ -152,6 +152,13 @@ class Api_Controller extends System_Controller  {
     $services = array(); // List of services for a given host
     $pdata    = json_decode(file_get_contents('php://input'), TRUE);
     $data     = array();
+
+    if ( !isset($pdata['targets']) ){
+      $data['error'] = "No targets specified";
+      return_json($data, 901);
+      return;
+    }
+
     foreach( $pdata['targets'] as $key => $target){
 
       $this->data->TIMERANGE['start'] = arr_get($pdata,  'start');
@@ -201,15 +208,19 @@ class Api_Controller extends System_Controller  {
         // create a Perflabel List
         $perflabels = array();
         foreach( $this->data->DS as $value){
-          if ( isRegex($perflabel) ){
-            if ( preg_match( $perflabel, arr_get($value, "LABEL" ) ) ){
-              $perflabels[] =  arr_get($value, "NAME" );
-            }
-          }else {
-            if ( $perflabel == arr_get($value, "LABEL" ) ){
-              $perflabels[] = arr_get($value, "NAME" );
-            }
+          $label = arr_get($value, "LABEL" );
+          if (isRegex($perflabel)) {
+              if(!preg_match( $perflabel, $label ) ){
+                continue;
+              }
+          } elseif ( $perflabel != $label ) {
+            continue;
           }
+          $perflabels[] = array(
+                            "label" => arr_get($value, "NAME" ),
+                            "warn"  => arr_get($value, "WARN" ),
+                            "crit"  => arr_get($value, "CRIT" )
+          );
         }
 
         foreach ( $perflabels as $tmp_perflabel){
@@ -226,14 +237,22 @@ class Api_Controller extends System_Controller  {
           $i = 0;
           $index = -1;
           foreach ( $xpd->meta->legend->entry as $k=>$v){
-            if( $v == $tmp_perflabel."_".$type){
-              $index = $i;
-              break;
+            if($type == "WARNING" || $type == "CRITICAL") {
+              if( $v == $tmp_perflabel['label']."_AVERAGE"){
+                $index = $i;
+                break;
+              }
+            }
+            else {
+              if( $v == $tmp_perflabel['label']."_".$type){
+                $index = $i;
+                break;
+              }
             }
             $i++;
           }
           if ( $index === -1 ){
-            $data['error'] = "No perfdata found for ".$tmp_perflabel."_".$type;
+            $data['error'] = "No perfdata found for ".$tmp_perflabel['label']."_".$type;
             return_json($data, 901);
             return;
           }
@@ -245,22 +264,35 @@ class Api_Controller extends System_Controller  {
           $data['targets'][$key][$hk]['end']         = $end * 1000;
           $data['targets'][$key][$hk]['host']        = $host;
           $data['targets'][$key][$hk]['service']     = $service;
-          $data['targets'][$key][$hk]['perflabel']   = $tmp_perflabel;
+          $data['targets'][$key][$hk]['perflabel']   = $tmp_perflabel['label'];
           $data['targets'][$key][$hk]['type']        = $type;
 
           $i  = 0;
-          foreach ( $xpd->data->row as $row=>$value){
-            // timestamp in milliseconds
-            $timestamp = ( $start + $i * $step ) * 1000;
-            #print_r($value);i
-            $d = (string) $value->v->$index;
-            if ($d == "NaN"){
-              $d = null;
-            }else{
-              $d = floatval($d);
+          if($type == "WARNING" || $type == "CRITICAL") {
+            foreach ( $xpd->data->row as $row=>$value){
+              // timestamp in milliseconds
+              $timestamp = ( $start + $i * $step ) * 1000;
+              if($type == "WARNING") {
+                $d = floatval($tmp_perflabel['warn']);
+              } else {
+                $d = floatval($tmp_perflabel['crit']);
+              }
+              $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+              $i++;
             }
-            $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
-            $i++;
+          } else {
+            foreach ( $xpd->data->row as $row=>$value){
+              // timestamp in milliseconds
+              $timestamp = ( $start + $i * $step ) * 1000;
+              $d = (string) $value->v->$index;
+              if ($d == "NaN"){
+                $d = null;
+              }else{
+                $d = floatval($d);
+              }
+              $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+              $i++;
+            }
           }
 
           $hk++;
