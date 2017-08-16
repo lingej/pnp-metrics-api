@@ -256,13 +256,18 @@ class Api_Controller extends System_Controller  {
 
             $xpd   = simplexml_load_string($xml);
             $i = 0;
-            $index = 0;
+            $index = -1;
             foreach ( $xpd->meta->legend->entry as $k=>$v){
               if( $v == $tmp_perflabel."_".$type){
                 $index = $i;
                 break;
               }
               $i++;
+            }
+            if ( $index === -1 ){
+              $data['error'] = "No perfdata found for ".$tmp_perflabel."_".$type;
+              return_json($data, 901);
+              return;
             }
 
             $start                  = (string) $xpd->meta->start;
