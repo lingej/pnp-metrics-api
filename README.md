@@ -27,6 +27,7 @@ curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -
 ```
 curl -s -u '<username>:<password>' https://example.org/pnp4nagios/index.php/api/hosts
 ```
+
 #### List services of a host
 ```
 curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
@@ -34,6 +35,17 @@ curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -
    "host":"host.example.org"
 }' https://example.org/pnp4nagios/index.php/api/services
 ```
+
+You can use regular expressions for host lists:
+
+```
+curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
+{
+   "host":"/^local"
+}' https://example.org/pnp4nagios/index.php/api/services
+```
+
+
 #### List labels of a service of specific host
 ```
 curl -s -u '<username>:<password>' -H "Content-Type: application/json" -X POST -d '
