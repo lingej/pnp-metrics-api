@@ -93,7 +93,8 @@ class Api_Controller extends System_Controller  {
       foreach($services as $service => $value){
         // All Services
         $data['services'][] = array(
-          'name' => $value['name']
+          'name'        => $value['name'],
+          'servicedesc' => $value['servicedesc']
         );
       }
     }
