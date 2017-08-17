@@ -30,31 +30,12 @@ class Api_Controller extends System_Controller  {
   *
   */
   public function hosts($query = false) {
-
-    if ( $query ){
-      $hosts = $this->data->getHosts();
-      $data  = array();
-      foreach ( $hosts as $host => $value ){
-        if ( $value['state'] != 'active' ){
-          continue;
-        }
-        if ( preg_match("$query", $value['name']) ){
-          $data['hosts'][] = array(
-            'name' => $value['name']
-          );
-        }
-      }
-    }else{
-      $hosts = $this->data->getHosts();
-      $data  = array();
-      foreach ( $hosts as $host => $value ){
-        if ( $value['state'] != 'active' ){
-          continue;
-        }
-        $data['hosts'][] = array(
-          'name' => $value['name']
-        );
-      }
+    $data  = array();
+    $hosts = getHosts($this->data, $query);
+    foreach ( $hosts as $host ){
+      $data['hosts'][] = array(
+        'name' => $host
+      );
     }
     return_json($data, 200);
   }
@@ -64,13 +45,14 @@ class Api_Controller extends System_Controller  {
   *
   */
   public function services() {
+    $data  = array();
     if ($_SERVER['REQUEST_METHOD'] != 'POST') {
       // Only Post Reuests
       $data['error'] = "Only POST Requests allowed";
       return_json($data, 901);
       return;
     }
-    $pdata    = json_decode(file_get_contents('php://input'), TRUE);
+    $pdata = json_decode(file_get_contents('php://input'), TRUE);
 
     $host = arr_get($pdata, "host");
     if ( $host === false ){
@@ -78,24 +60,22 @@ class Api_Controller extends System_Controller  {
       return_json($data, 901);
       return;
     }
-    $services = array();
-    if ( isRegex($host) ){
+    $services   = array();
+    $hosts      = getHosts($this->data, $host);
+    $services   = getServices($this->data, $hosts);
+    $duplicates = array();
 
-    }else{
-      try {
-        $services = $this->data->getServices($host);
-      } catch ( Kohana_Exception $e) {
-        $data['error'] = "$e";
-        return_json($data, 901);
-        return;
+    foreach($services as $service){
+      // skip duplicates
+      if(isset($duplicates[$service['servicedesc']])) {
+        continue;
       }
-
-      foreach($services as $service => $value){
-        // All Services
-        $data['services'][] = array(
-          'name' => $value['name']
-        );
-      }
+      $duplicates[$service['servicedesc']] = true;
+      $data['services'][] = array(
+        'name'        => $service['name'],
+        'servicedesc' => $service['servicedesc'],
+        'hostname'    => $service['hostname']
+      );
     }
     return_json($data, 200);
   }
@@ -105,6 +85,7 @@ class Api_Controller extends System_Controller  {
   *
   */
   public function labels ( $host=false, $service=false ) {
+    $data = array();
     if ($_SERVER['REQUEST_METHOD'] != 'POST') {
       // Only Post Reuests
       $data['error'] = "Only POST Requests allowed";
@@ -125,20 +106,34 @@ class Api_Controller extends System_Controller  {
       return_json($data, 901);
       return;
     }
-    try {
-      // read XML file
-      $this->data->readXML($host, $service);
-    } catch (Kohana_Exception $e) {
-      $data['error'] = "$e";
-      return_json($data, 901);
-      return;
-    }
-    $data = array();
-    foreach( $this->data->DS as $KEY => $DS){
-      $data['labels'][] = array(
-        'name'  => $DS['NAME'],
-        'label' => $DS['LABEL']
-      );
+
+    $hosts      = getHosts($this->data, $host);
+    $services   = getServices($this->data, $hosts, $service);
+    $duplicates = array();
+
+    foreach($services as $service){
+      try {
+        // read XML file
+        $this->data->readXML($service['hostname'], $service['name']);
+      } catch (Kohana_Exception $e) {
+        $data['error'] = "$e";
+        return_json($data, 901);
+        return;
+      }
+
+      foreach( $this->data->DS as $KEY => $DS) {
+        // skip duplicates
+        if(isset($duplicates[$DS['LABEL']])) {
+          continue;
+        }
+        $duplicates[$DS['LABEL']] = true;
+        $data['labels'][] = array(
+          'name'     => $DS['NAME'],
+          'label'    => $DS['LABEL'],
+          'service'  => $service['name'],
+          'hostname' => $service['hostname']
+        );
+      }
     }
     return_json($data, 200);
   }
@@ -157,6 +152,13 @@ class Api_Controller extends System_Controller  {
     $services = array(); // List of services for a given host
     $pdata    = json_decode(file_get_contents('php://input'), TRUE);
     $data     = array();
+
+    if ( !isset($pdata['targets']) ){
+      $data['error'] = "No targets specified";
+      return_json($data, 901);
+      return;
+    }
+
     foreach( $pdata['targets'] as $key => $target){
 
       $this->data->TIMERANGE['start'] = arr_get($pdata,  'start');
@@ -186,100 +188,102 @@ class Api_Controller extends System_Controller  {
         return_json($data, 901);
         return;
       }
-      // generate a list of hosts
-      if ( isRegex($host) ){
-        // create a Host List
-        $hosts = $this->data->getHosts();
-        $t = array();
-        foreach ($hosts as $value) {
-          if ( preg_match("$host", $value['name']) ){
-            $t[] = $value['name'];
-          }
-        }
-        $hosts = $t;
-      }else{
-        $hosts[0] = $host;
-      }
+      $hosts    = getHosts($this->data, $host);
+      $services = getServices($this->data, $hosts, $service);
 
       $hk = 0; // Host Key
-      foreach ( $hosts as $host){
 
-        if ( isRegex($service) ){
-          // create a Host List
-          $services = $this->data->getServices($host);
-          $t = array();
-          foreach ($services as $value) {
-            if ( preg_match("$service", $value['name']) ){
-              $t[] = $value['name'];
-            }
-          }
-          $services = $t;
-        }else{
-          $services[0] = $service;
+      foreach ( $services as $service) {
+        $host    = $service['hostname'];
+        $service = $service['name'];
+        try {
+          // read XML file
+          $this->data->readXML($host, $service);
+        } catch (Kohana_Exception $e) {
+          $data['error'] = "$e";
+          return_json($data, 901);
+          return;
         }
 
-        foreach ( $services as $service){
+        // create a Perflabel List
+        $perflabels = array();
+        foreach( $this->data->DS as $value){
+          $label = arr_get($value, "LABEL" );
+          if (isRegex($perflabel)) {
+              if(!preg_match( $perflabel, $label ) ){
+                continue;
+              }
+          } elseif ( $perflabel != $label ) {
+            continue;
+          }
+          $perflabels[] = array(
+                            "label" => arr_get($value, "NAME" ),
+                            "warn"  => arr_get($value, "WARN" ),
+                            "crit"  => arr_get($value, "CRIT" )
+          );
+        }
 
+        foreach ( $perflabels as $tmp_perflabel){
           try {
-            // read XML file
-            $this->data->readXML($host, $service);
+            $this->data->buildXport($host, $service);
+            $xml = $this->rrdtool->doXport($this->data->XPORT);
           } catch (Kohana_Exception $e) {
             $data['error'] = "$e";
             return_json($data, 901);
             return;
           }
 
-          // create a Perflabel List
-          $perflabels = array();
-          foreach( $this->data->DS as $value){
-            if ( isRegex($perflabel) ){
-              if ( preg_match( $perflabel, arr_get($value, "LABEL" ) ) ){
-                $perflabels[] =  arr_get($value, "LABEL" );
-              }
-            }else {
-              if ( $perflabel == arr_get($value, "LABEL" ) ){
-                $perflabels[] = arr_get($value, "LABEL" );
-              }
-            }
-          }
-
-
-          foreach ( $perflabels as $tmp_perflabel){
-            try {
-              $this->data->buildXport($host, $service);
-              $xml = $this->rrdtool->doXport($this->data->XPORT);
-            } catch (Kohana_Exception $e) {
-              $data['error'] = "$e";
-              return_json($data, 901);
-              return;
-            }
-
-            $xpd   = simplexml_load_string($xml);
-            $i = 0;
-            $index = 0;
-            foreach ( $xpd->meta->legend->entry as $k=>$v){
-              if( $v == $tmp_perflabel."_".$type){
+          $xpd   = simplexml_load_string($xml);
+          $i = 0;
+          $index = -1;
+          foreach ( $xpd->meta->legend->entry as $k=>$v){
+            if($type == "WARNING" || $type == "CRITICAL") {
+              if( $v == $tmp_perflabel['label']."_AVERAGE"){
                 $index = $i;
                 break;
               }
-              $i++;
             }
+            else {
+              if( $v == $tmp_perflabel['label']."_".$type){
+                $index = $i;
+                break;
+              }
+            }
+            $i++;
+          }
+          if ( $index === -1 ){
+            $data['error'] = "No perfdata found for ".$tmp_perflabel['label']."_".$type;
+            return_json($data, 901);
+            return;
+          }
 
-            $start                  = (string) $xpd->meta->start;
-            $end                    = (string) $xpd->meta->end;
-            $step                   = (string) $xpd->meta->step;
-            $data['targets'][$key][$hk]['start']       = $start * 1000;
-            $data['targets'][$key][$hk]['end']         = $end * 1000;
-            $data['targets'][$key][$hk]['host']        = $host;
-            $data['targets'][$key][$hk]['service']     = $service;
-            $data['targets'][$key][$hk]['perflabel']   = $tmp_perflabel;
-            $data['targets'][$key][$hk]['type']        = $type;
+          $start                  = (string) $xpd->meta->start;
+          $end                    = (string) $xpd->meta->end;
+          $step                   = (string) $xpd->meta->step;
+          $data['targets'][$key][$hk]['start']       = $start * 1000;
+          $data['targets'][$key][$hk]['end']         = $end * 1000;
+          $data['targets'][$key][$hk]['host']        = $host;
+          $data['targets'][$key][$hk]['service']     = $service;
+          $data['targets'][$key][$hk]['perflabel']   = $tmp_perflabel['label'];
+          $data['targets'][$key][$hk]['type']        = $type;
 
-            $i  = 0;
+          $i  = 0;
+          if($type == "WARNING" || $type == "CRITICAL") {
             foreach ( $xpd->data->row as $row=>$value){
               // timestamp in milliseconds
               $timestamp = ( $start + $i * $step ) * 1000;
-              #print_r($value);i
+              if($type == "WARNING") {
+                $d = floatval($tmp_perflabel['warn']);
+              } else {
+                $d = floatval($tmp_perflabel['crit']);
+              }
+              $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
+              $i++;
+            }
+          } else {
+            foreach ( $xpd->data->row as $row=>$value){
+              // timestamp in milliseconds
+              $timestamp = ( $start + $i * $step ) * 1000;
               $d = (string) $value->v->$index;
               if ($d == "NaN"){
                 $d = null;
@@ -289,10 +293,10 @@ class Api_Controller extends System_Controller  {
               $data['targets'][$key][$hk]['datapoints'][] = array( $d, $timestamp );
               $i++;
             }
-
-            $hk++;
-
           }
+
+          $hk++;
+
         }
       }
     }
@@ -336,4 +340,60 @@ function isRegex($string){
   }else{
     return false;
   }
+}
+
+function getHosts($data, $query = false) {
+  $result  = array();
+  $hosts   = $data->getHosts();
+  $isRegex = false;
+  if ($query !== false && isRegex($query) ) {
+    $isRegex = true;
+  }
+  foreach ( $hosts as $host ){
+    if ( $host['state'] != 'active' ){
+      continue;
+    }
+    if($isRegex) {
+      if(preg_match("$query", $host['name']) ) {
+        $result[] = $host['name'];
+      }
+    }
+    elseif ($query !== false) {
+      if("$query" == $host['name']) {
+        $result[] = $host['name'];
+      }
+    } else {
+      $result[] = $host['name'];
+    }
+  }
+  return($result);
+}
+
+/*
+* returns list of service hashes
+*/
+function getServices($data, $hosts, $query = false) {
+  $result = array();
+  $isRegex = false;
+  if ($query !== false && isRegex($query) ) {
+    $isRegex = true;
+  }
+  foreach ( $hosts as $host){
+    $services = $data->getServices($host);
+    foreach ($services as $value) {
+      if ($isRegex) {
+        if ( preg_match("$query", $value['name']) || preg_match("$query", $value['servicedesc'])) {
+          $result[] = $value;
+        }
+      }
+      elseif ($query !== false) {
+        if("$query" == $value['name'] || "$query" == $value['servicedesc']) {
+          $result[] = $value;
+        }
+      } else {
+        $result[] = $value;
+      }
+    }
+  }
+  return($result);
 }
