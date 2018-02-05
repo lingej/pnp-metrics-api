@@ -114,7 +114,7 @@ class Api_Controller extends System_Controller  {
     foreach($services as $service){
       try {
         // read XML file
-        $this->data->readXML($service['hostname'], $service['name']);
+        $this->data->readXML($service['hostname'] == "pnp-internal" ? ".pnp-internal" : $service['hostname'], $service['name']);
       } catch (Kohana_Exception $e) {
         $data['error'] = "$e";
         return_json($data, 901);
@@ -365,6 +365,9 @@ function getHosts($data, $query = false) {
     } else {
       $result[] = $host['name'];
     }
+  }
+  if ($query !== false && $query == ".pnp-internal") {
+    $result[] = ".pnp-internal";
   }
   return($result);
 }
