@@ -198,7 +198,7 @@ class Api_Controller extends System_Controller  {
         $service = $service['name'];
         try {
           // read XML file
-          $this->data->readXML($host, $service);
+          $this->data->readXML(($host == "pnp-internal" ? ".pnp-internal" : $host), $service);
         } catch (Kohana_Exception $e) {
           $data['error'] = "$e";
           return_json($data, 901);
@@ -225,7 +225,7 @@ class Api_Controller extends System_Controller  {
 
         foreach ( $perflabels as $tmp_perflabel){
           try {
-            $this->data->buildXport($host, $service);
+            $this->data->buildXport($host == "pnp-internal" ? ".pnp-internal" : $host, $service);
             $xml = $this->rrdtool->doXport($this->data->XPORT);
           } catch (Kohana_Exception $e) {
             $data['error'] = "$e";
