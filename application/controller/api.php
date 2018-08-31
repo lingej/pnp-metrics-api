@@ -159,8 +159,10 @@ class Api_Controller extends System_Controller  {
       return;
     }
 
+    $data['targets'] = array();
     foreach( $pdata['targets'] as $key => $target){
 
+      $data['targets'][$key] = array();
       $this->data->TIMERANGE['start'] = arr_get($pdata,  'start');
       $this->data->TIMERANGE['end']   = arr_get($pdata,  'end');
       $host        = arr_get($target, 'host');
