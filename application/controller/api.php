@@ -286,7 +286,7 @@ class Api_Controller extends System_Controller  {
             foreach ( $xpd->data->row as $row=>$value){
               // timestamp in milliseconds
               $timestamp = ( $start + $i * $step ) * 1000;
-              $d = (string) $value->v->$index;
+              $d = (string) $value->v[$index];
               if ($d == "NaN"){
                 $d = null;
               }else{
