@@ -1,4 +1,7 @@
 # pnp-metrics-api
+
+The api.php itself has been moved to https://github.com/ConSol/pnp/blob/master/share/pnp/application/controllers/api.php
+
 ## Usage examples
 ### CURL
 #### Query metrics of a service on a specific host
